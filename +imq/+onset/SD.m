@@ -1,0 +1,48 @@
+function [DSD] = SD(X, p)
+% function [DSD] = SD(X, threshold)
+%
+% Rectified Spectral Difference (Spectral Flux)
+%
+% Inputs: (arguments in [.] are optional)
+%
+%	p - 
+% 		1 - L_1 norm
+%		2 - L_2 norm
+%
+% Outputs:
+%	D	SD -	Detection function
+%
+% Last Modified on 06/2015
+%
+% Calculates a detection function based on the difference between the
+% spectral magnitudes of two successive STFT frames.
+%
+%	D_SD = sum_k H(|X_k(n)| - |X_k(n-1)|)^2
+%	Where H(X) = (X+|X|)/2
+%
+%	
+%
+% Written by Igor Quintanilha
+%            Universidade Federal do Rio de Janeiro
+%            Escola Politécnica
+%            Departamento de Engenharia Eletrônica
+%            E-mail: igormq@poli.ufrj.br
+
+%
+% Reference:
+%	[1] BELLO, Juan Pablo et al. A tutorial on onset detection in music
+%		signals. Speech and Audio Processing, IEEE Transactions on, v. 13, n. 
+%		5, p. 1035-1047, 2005.
+%	[2] BROSSIER, Paul M. Automatic annotation of musical audio for
+%		interactive applications. 2006. Tese de Doutorado. 
+%		Queen Mary, University of London.
+%		Journal of Global Optimization, 58(2), pp. 285-319, 2014.
+
+% H = @(X) (X + abs(X)) / 2;
+
+% DSD = sum(H(abs(X) - abs([zeros(size(X,1), 1) X(:, 1:(end-1))])).^p, 1);
+X = [zeros(size(X,1),1) diff(X, 1, 2)];
+
+X(X <0) = 0;
+
+DSD = sum(X.^p);

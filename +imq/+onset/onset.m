@@ -1,0 +1,170 @@
+function [onsets, audio] = onset(x, fs, varargin)
+	% function [onsets, audio] = onset(x, fs, varargin)
+	%
+	% Onset detection algorithm
+	%
+	% Inputs: (arguments in [.] are optional)
+	%
+	%
+	% Outputs:
+	%
+	% Last Modified on 02/2016
+	%
+	%	
+	%
+	% Written by Igor Quintanilha
+	%            Universidade Federal do Rio de Janeiro
+	%            Escola Politécnica
+	%            Departamento de Engenharia Eletrônica
+	%            E-mail: igormq@poli.ufrj.br
+	%
+	%
+	% Reference:
+	%	[1] BELLO, Juan Pablo et al. A tutorial on onset detection in music
+	%		signals. Speech and Audio Processing, IEEE Transactions on, v. 13, n. 
+	%		5, p. 1035-1047, 2005.
+	
+
+	import imq.*
+	
+	parser = inputParser;
+	
+	addRequired(parser, 'x', @(x) validateattributes(x, {'numeric'},{}));
+	addRequired(parser, 'fs', @(x) validateattributes(x, {'numeric'},{'>', 0}));
+	addParamValue(parser, 'NFFT', 512, @(x) validateattributes(x, {'numeric'},{'>', 0}));
+	addParamValue(parser, 'S', 512/4, @(x) validateattributes(x, {'numeric'},{'>', 0}));
+	addParamValue(parser, 'L', 512, @(x) validateattributes(x, {'numeric'},{'>', 0}));
+	addParamValue(parser, 'p',1, @(x) validateattributes(x, {'numeric'},{'>', 0}));
+	addParamValue(parser, 'window', @windows.ModifiedHammingWindow, @(x) validateattributes(x, {'function_handle'}, {}));
+	addParamValue(parser, 'show', false, @(x) validateattributes(x, {'logical'},{}));
+	addParamValue(parser, 'logCompression', false, @(x) validateattributes(x, {'logical'},{}));
+	addParamValue(parser, 'alpha', 0.6, @(x) validateattributes(x, {'numeric'},{}));
+	addParamValue(parser, 'a', 7, @(x) validateattributes(x, {'numeric'},{}));
+	addParamValue(parser, 'b', 1, @(x) validateattributes(x, {'numeric'},{}));
+	addParamValue(parser, 'lambda', 1, @(x) validateattributes(x, {'numeric'},{}));
+	addParamValue(parser, 'delta', 0.1, @(x) validateattributes(x, {'numeric'},{}));
+	addParamValue(parser, 'method', 'bello', @(x) validateattributes(x, {'char'},{}));
+	addParamValue(parser, 'df', 'hfc', @(x) validateattributes(x, {'char'},{}));
+	addParamValue(parser, 'merge', false, @(x) validateattributes(x, {'logical'},{}));
+	addParamValue(parser, 'time', 50, @(x) validateattributes(x, {'numeric'},{}));
+	
+	parse(parser, x, fs, varargin{:});
+	
+	args = parser.Results;
+	
+	%STFT
+% 	X = imq.STFT(x, args.window, args.L, args.S, args.NFFT);
+	
+  	X = spectrogram(x,args.L,args.L - args.S);
+	
+	
+
+	[m,n] = size(X);
+	
+	%Logarithm Compression - Klapuri
+	if args.logCompression
+		mu = 1e8;
+		Y = log(1+mu*abs(X))/log(1+mu);
+	else
+		Y = abs(X);
+	end
+
+	%Pre-processing original -> pre-processed
+
+	%Reduction audio-signal (pre-processed) -> detection functionspectrogram(x,512,512/4);
+	if strcmp(args.df, 'hfc'),
+		[d] = imq.onset.HFC(Y, args.p);
+	elseif strcmp(args.df, 'sd')
+		d = imq.onset.SD(Y, args.p);
+	elseif strcmp(args.df, 'sd-1')
+		d = imq.onset.SD(Y, 1);
+	elseif strcmp(args.df, 'sd-2')
+		d = imq.onset.SD(Y, 2);
+	elseif strcmp(args.df, 'pd')
+		d = imq.onset.PD(X);
+	elseif strcmp(args.df, 'wpd')
+		d = imq.onset.WPD(X);
+	elseif strcmp(args.df, 'nwpd')
+		d = imq.onset.NWPD(X);
+	else
+		error('Detection function not recognized');
+	end
+		
+
+% % 	d = log(d+1);
+	
+	D = round(length(x)/n);
+	
+	if strcmp(args.method, 'bello')
+		
+		%remove mean
+		d = d - mean(d);
+
+		% scale values
+		d = d / max(abs(d));
+% 		d = d /std(d);
+
+		%Low pass filtering
+		b = args.alpha;
+		a = [1 (args.alpha - 1)];
+
+		% b = fir1(100, 0.25);
+		% a = 1;
+		% b=1;
+		%firpm 
+
+		% d_lp = filter(b,a, d);
+		d_lp = filtfilt(b,a, d);
+
+		% d_lp(1:(ord-2)/2) = [];
+
+
+		% d_lp = d;
+
+		threshold = imq.onset.MedianFiltering(d_lp, args.a, args.b, args.lambda, args.delta);
+
+		hit = (d_lp-threshold);
+
+% 		hit(hit < 0) = 0;
+
+% 		locals = local_max(hit);
+		[~,locals] = findpeaks(hit);
+		
+		
+		locals = setdiff(locals, find(hit < 0));
+		
+	elseif strcmp(args.method, 'dixon')
+		locals = imq.onset.PeakPicking(d, args.alpha, args.delta);
+		locals = find(locals==1);
+	else
+		error('Choose between dixon or bello');
+	end
+
+	if args.show
+	figure
+	plot(x,'r')
+ 		hold on
+% 		figure
+% 		plot((1:length(locals))*D,locals,'g')
+% 		figure
+% 		plot((1:length(d_lp))*D,d_lp)
+%         
+
+% 		title(sprintf('Onsets: %d', length(locals)))
+		%stem(locals*D, ones(size(locals)) * max(locals))
+		stem(locals*D, ones(size(locals)))
+		hold off
+	end
+
+	onsets = round(locals*D);
+	
+	onsets  = onsets - (2+args.b)*args.S;
+	
+	if args.merge
+		onsets = imq.onset.mergeOnsets(onsets/fs, args.time)*fs;
+	end
+	
+	if nargout > 1
+		audio = imq.onset.merge(x, imq.onset.beeponsets(onsets, fs));
+	end
+end

@@ -1,0 +1,23 @@
+function [W,H,cfg,values,ver] = init(A,W,H,cfg)
+    input = inputParser;
+
+	addParamValue(input, 'maxInnerIt', 10);
+	addParamValue(input,'initReg', 1e-8);
+	addParamValue(input,'mu', 15);
+	addParamValue(input,'xi', 0.99);
+	addParamValue(input,'tol', 1e-8);
+	addParamValue(input,'epsFeas', 1e-6); 
+% 	addParamValue(input,'alphaSpar', [0 0]); %[sparW sparH contW contH contOrder]
+% 	addParamValue(input,'alphaCont', [0 0]);
+% 	addParamValue(input,'alpha', [0 0]);%[weightSpar normSpar weightCont]
+	addParamValue(input,'T', 0);
+	
+	parse(input, cfg.subParams{:})
+	
+	values = input.Results;
+	
+	[gradW, gradH] = cfg.cost.getGradient(A, W, H);
+	
+	values.prevH.x = H(:);
+	values.prevH.grad = g
+end

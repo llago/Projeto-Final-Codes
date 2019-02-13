@@ -1,0 +1,73 @@
+function [costs, locs, slope_dev, ] = get_Costs_Locs(hos_file)
+    load hos_file
+    for i= 1:size(Ho_hypo_cell,1)
+
+        Ho_norm = normalize(Ho, 1);
+        Ho_hypo_norm = normalize(Ho_hypo_cell{i}, 1);
+
+        % for i = 1:k
+        %     Ho_norm(i,:) = Ho(i,:)/norm(Ho(i,:),1);
+        %     Ho_hypo_norm(i,:) = Ho_hypo(i,:)/norm(Ho_hypo(i,:),1);
+        % end
+
+        D = pdist2(Ho_norm', Ho_hypo_norm','correlation');
+    %     D = pdist2(Ho_norm', Ho_hypo_norm');
+        [a,c,DeltaP] = DTW_sub_query(D);
+        c_cell{i} = c;
+        DeltaP_cell{i} = DeltaP;
+
+        % Finds all local minimuns
+    %     [mins, loc_mins, widths, prominence] = findpeaks(-c(end,:));
+    %     [vals{i}] = findpeaks(-c(end,:));
+
+    %     figure;
+    %     findpeaks(-c(end,:));
+        [mins_cell{i}, loc_mins_cell{i}, widths, prominence] = findpeaks(-c(end,:),'MinPeakProminence',20);
+
+
+
+        % Finds the most significant minimuns
+    %     [mins, loc_mins, widths, prominence] = findpeaks(-c(end,:), 'MinPeakHeight', mean(vals{i})); 
+
+    %     loc_mins_cell{i} = loc_mins;
+    %     mins_cell{i} = mins;
+    %     mean_mins(i) = mean(mins);
+        global_min(i) = min(c(end,:));
+
+    %     figure;
+    %     imagesc(c);
+    %     title(i);
+    end
+
+    % Finds best semi-tom 
+    [~,best_index] = min(global_min);
+    paths = DTW_path_finder(c_cell{best_index}, DeltaP_cell{best_index}, loc_mins_cell{best_index});
+    locs = cell2mat(loc_mins_cell(best_index));
+    costs = cell2mat(mins_cell(best_index));
+
+    for k=1:size(paths, 2)
+        cum_dev = 0;
+        path = paths{k};
+        av_slope = (path(end,2) - path(1,2))/(path(end,1) - path(1,1));
+        cum_dev = sum(abs(path(2:end-1,2) - path(2:end-1,1)*av_slope)/sqrt(1+av_slope*av_slope)); 
+        cum_dev = cum_dev/(size(path,1)-2);
+    % 	[costs_m(i), locs_m(i)] = min(c(end,:));
+    %     locs_m(i) = locs_m(i) + i;
+    %     costs_m(i) = costs_m(i)/size(a,1);
+        costs(k) = abs(costs(k))/size(path,1);
+        slope_dev(k) = cum_dev;
+    end
+
+
+    % figure;
+    % % findpeaks(-c_cell{best_index}(end,:));
+    % findpeaks(-c_cell{best_index}(end,:),'MinPeakProminence',20);
+    % % findpeaks(-c(end,:), 'MinPeakHeight', mean(vals{best_index})); 
+    % 
+    % figure;   
+    % imagesc(c_cell{best_index});
+    % title(best_index);
+    % for j = 1:size(paths,2)
+    %     hold on;
+    %     plot(paths{j}(:,2),paths{j}(:,1), 'r')
+    % end
